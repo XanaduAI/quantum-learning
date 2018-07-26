@@ -12,7 +12,7 @@ import strawberryfields as sf
 from strawberryfields.ops import *
 
 from states import single_photon, ON, hex_GKP, random_state, NOON, correct_global_phase
-from plots import wigner_3D_plot, wavefunction_plot, plot_cost
+from plots import wigner_3D_plot, wavefunction_plot, two_mode_wavefunction_plot, plot_cost
 
 
 # ===============================================================================
@@ -28,9 +28,9 @@ HP = {
     # State parameters
     'params': [5],
     # Cutoff dimension
-    'cutoff': 6,
+    'cutoff': 10,
     # Number of layers
-    'depth': 8,
+    'depth': 20,
     # Number of steps in optimization routine performing gradient descent
     'reps': 1000,
     # Penalty coefficient to ensure the state is normalized
@@ -45,7 +45,15 @@ HP = {
 # ===============================================================================
 
 def parse_arguments(defaults):
-    """Parse optional command line arguments."""
+    """Parse optional command line arguments.
+
+    Args:
+        defaults (dict): a dictionary containing the default hyperparameters.
+
+    Returns:
+        dict: a dictionary containing the simulation hyperparameters, updated
+            with values passed as command line arguments.
+    """
 
     parser = argparse.ArgumentParser(description='Quantum state preparation learning.')
     # output arguments
@@ -80,7 +88,7 @@ def parse_arguments(defaults):
         hyperparams['name'] += "_debug"
 
     hyperparams['simulation_name'] = "{}_d{}_c{}_r{}".format(
-        HP['name'], HP['depth'], HP['cutoff'], HP['reps'])
+        hyperparams['name'], hyperparams['depth'], hyperparams['cutoff'], hyperparams['reps'])
 
     hyperparams['out_dir'] = os.path.join(args.outdir, hyperparams['simulation_name'], '')
     hyperparams['board_name'] = os.path.join('TensorBoard', hyperparams['simulation_name'], '')
@@ -92,12 +100,20 @@ def parse_arguments(defaults):
     return hyperparams
 
 
-def circuit(cutoff, depth=25, sdev=0.1, **kwargs):
-    """Construct the circuit, and return the state vector and gate parameters."""
+def one_mode_circuit(cutoff, depth=25, sdev=0.1, **kwargs):
+    """Construct the one mode circuit ansatz, and return the state vector and gate parameters.
 
-    # ===============================================================================
+    Args:
+        cutoff (int): the Fock basis truncation.
+        depth (int): the number of layers to use to construct the circuit.
+        sdev (float): the normal standard deviation used to initialise the gate parameters.
+
+    Returns:
+        tuple (state, parameters): a tuple contiaining the state vector and a list of the
+            gate parameters, as tensorflow tensors.
+    """
+
     # Layer architecture
-    # ===============================================================================
 
     # Random initialization of gate parameters.
     # Gate parameters begin close to zero, with values drawn from Normal(0, sdev)
@@ -118,7 +134,7 @@ def circuit(cutoff, depth=25, sdev=0.1, **kwargs):
     # Array of all parameters
     parameters = [d_r, d_phi, r1, sq_r, sq_phi, r2, kappa]
 
-    # Gate layer: D-R-S-K
+    # Gate layer: D-R-S-R-K
     def layer(i, q, m):
         with tf.name_scope('layer_{}'.format(i)):
             Dgate(d_phi[i]) | q[m]
@@ -129,9 +145,7 @@ def circuit(cutoff, depth=25, sdev=0.1, **kwargs):
 
         return q
 
-    # ===============================================================================
     # Construct the circuit
-    # ===============================================================================
 
     # Start SF engine
     eng, q = sf.Engine(1)
@@ -145,6 +159,77 @@ def circuit(cutoff, depth=25, sdev=0.1, **kwargs):
 
     # Extract the state vector
     ket = state.ket()
+
+    return ket, parameters
+
+
+def two_mode_circuit(cutoff, depth=25, sdev=0.1, **kwargs):
+    """Construct the two mode circuit ansatz, and return the state vector and gate parameters.
+
+    Args:
+        cutoff (int): the Fock basis truncation.
+        depth (int): the number of layers to use to construct the circuit.
+        sdev (float): the normal standard deviation used to initialise the gate parameters.
+
+    Returns:
+        tuple (state, parameters): a tuple contiaining the state vector and a list of the
+            gate parameters, as tensorflow tensors.
+    """
+
+    # Random initialization of gate parameters.
+    # Gate parameters begin close to zero, with values drawn from Normal(0, sdev)
+    with tf.name_scope('variables'):
+        # interferometer1 parameters
+        theta1 = tf.Variable(tf.random_normal(shape=[depth], stddev=sdev))
+        phi1 = tf.Variable(tf.random_normal(shape=[depth], stddev=sdev))
+        r1 = tf.Variable(tf.random_normal(shape=[depth], stddev=sdev))
+        # squeeze gate
+        sq_r = tf.Variable(tf.random_normal(shape=[2, depth], stddev=sdev))
+        sq_phi = tf.Variable(tf.random_normal(shape=[2, depth], stddev=sdev))
+        # interferometer2 parameters
+        theta2 = tf.Variable(tf.random_normal(shape=[depth], stddev=sdev))
+        phi2 = tf.Variable(tf.random_normal(shape=[depth], stddev=sdev))
+        r2 = tf.Variable(tf.random_normal(shape=[depth], stddev=sdev))
+        # displacement gate
+        d_r = tf.Variable(tf.random_normal(shape=[2, depth], stddev=sdev))
+        d_phi = tf.Variable(tf.random_normal(shape=[2, depth], stddev=sdev))
+        # kerr gate
+        kappa = tf.Variable(tf.random_normal(shape=[2, depth], stddev=sdev))
+
+
+    # Array of all parameters
+    parameters = [theta1, phi1, r1, sq_r, sq_phi, theta2, phi2, r2, d_r, d_phi, kappa]
+
+
+    # Gate layer: U-(SxS)-U-(DxD)-(KxK)
+    def layer(i, q):
+        with tf.name_scope('layer_{}'.format(i)):
+            BSgate(theta1[k], phi1[k]) | (q[0], q[1])
+            Rgate(r1[i]) | q[0]
+
+            for m in range(2):
+                Sgate(sq_r[m, i], sq_phi[m, i]) | q[m]
+
+            BSgate(theta2[k], phi2[k]) | (q[0], q[1])
+            Rgate(r2[i]) | q[0]
+
+            for m in range(2):
+                Dgate(d_r[m, i],  d_phi[m, i]) | q[m]
+                Kgate(kappa[m, i]) | q[m]
+        return q
+
+    # Start SF engine
+    eng, q = sf.Engine(2)
+
+    # construct the circuit
+    with eng:
+        for k in range(depth):
+            q = layer(k, q)
+
+    state = eng.run('tf', cutoff_dim=cutoff, eval=False)
+
+    # Extract the state vector
+    ket = tf.reshape(state.ket(), [-1])
 
     return ket, parameters
 
@@ -229,7 +314,7 @@ def optimize(ket, target_state, parameters, cutoff, reps=1000, penalty_strength=
 
         if i % dump_reps == 0:
             # print progress
-            print("Rep: {:.4f} Cost: {:.4f} Fidelity: {:.4f} Norm: {:.4f}".format(
+            print("Rep: {} Cost: {:.4f} Fidelity: {:.4f} Norm: {:.4f}".format(
                 i, cost_val, fid_val, norm_val))
 
             if i > 0:
@@ -288,25 +373,34 @@ def optimize(ket, target_state, parameters, cutoff, reps=1000, penalty_strength=
     return sim_results
 
 
-def save_plots(target_state, best_state, cost_progress, offset=-0.11, l=5,
+def save_plots(modes, target_state, best_state, cost_progress, offset=-0.11, l=5,
         out_dir='sim_results', simulation_name='state_learner', **kwargs):
     """Generate and save plots"""
 
-    # generate a wigner function plot of the target state
-    fig1, ax1 = wigner_3D_plot(target_state, offset=offset, l=l)
-    fig1.savefig(os.path.join(out_dir, simulation_name+'_targetWigner.png'))
+    if modes == 1:
+        # generate a wigner function plot of the target state
+        fig1, ax1 = wigner_3D_plot(target_state, offset=offset, l=l)
+        fig1.savefig(os.path.join(out_dir, simulation_name+'_targetWigner.png'))
 
-    # generate a wigner function plot of the learnt state
-    fig2, ax2 = wigner_3D_plot(best_state, offset=offset, l=l)
-    fig2.savefig(os.path.join(out_dir, simulation_name+'_learntWigner.png'))
+        # generate a wigner function plot of the learnt state
+        fig2, ax2 = wigner_3D_plot(best_state, offset=offset, l=l)
+        fig2.savefig(os.path.join(out_dir, simulation_name+'_learntWigner.png'))
 
-    # generate a wavefunction plot of the target state
-    figW1, axW1 = wavefunction_plot(target_state, l=l)
-    figW1.savefig(os.path.join(out_dir, simulation_name+'_targetWavefunction.png'))
+        # generate a wavefunction plot of the target state
+        figW1, axW1 = wavefunction_plot(target_state, l=l)
+        figW1.savefig(os.path.join(out_dir, simulation_name+'_targetWavefunction.png'))
 
-    # generate a wavefunction plot of the learnt state
-    figW2, axW2 = wavefunction_plot(best_state, l=l)
-    figW2.savefig(os.path.join(out_dir, simulation_name+'_learntWavefunction.png'))
+        # generate a wavefunction plot of the learnt state
+        figW2, axW2 = wavefunction_plot(best_state, l=l)
+        figW2.savefig(os.path.join(out_dir, simulation_name+'_learntWavefunction.png'))
+    else:
+        # generate a 3D wavefunction plot of the target state
+        figW1, axW1 = two_mode_wavefunction_plot(target_state, l=l)
+        figW1.savefig(os.path.join(out_dir, simulation_name+'_targetWavefunction.png'))
+
+        # generate a 3D wavefunction plot of the learnt state
+        figW2, axW2 = two_mode_wavefunction_plot(best_state, l=l)
+        figW2.savefig(os.path.join(out_dir, simulation_name+'_learntWavefunction.png'))
 
     # generate a cost function plot
     figC, axC = plot_cost(cost_progress)
@@ -319,7 +413,20 @@ if __name__ == "__main__":
 
     # set the target state
     target_state = single_photon(HP['cutoff'])
+    modes = 1
 
-    ket, parameters = circuit(**HP)
+    # set the target state
+    target_state = NOON(5, HP['cutoff'])
+    modes = 2
+
+    # calculate the learnt state and return the gate parameters
+    if modes == 1:
+        ket, parameters = one_mode_circuit(**HP)
+    elif modes == 2:
+        ket, parameters = two_mode_circuit(**HP)
+
+    # perform the optimization
     res = optimize(ket, target_state, parameters, **HP)
-    save_plots(res['learnt_state'], target_state, res['cost_progress'], **HP)
+
+    # save plots
+    save_plots(modes, res['learnt_state'], target_state, res['cost_progress'], **HP)

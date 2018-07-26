@@ -232,7 +232,7 @@ def two_mode_wavefunction(ket, l=4.5, N=100):
     return X, Y, Z
 
 
-def two_mode_wavefunction_3D_plot(ket, cmap="RdYlBu", offset=-0.11, l=4.5, N=100):
+def two_mode_wavefunction_plot(ket, cmap="RdYlBu", offset=-0.11, l=4.5, N=100):
     """Plot the two-mode wavefunction of a state vector.
 
     Args:
