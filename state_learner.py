@@ -22,7 +22,7 @@ from plots import wigner_3D_plot, wavefunction_plot, two_mode_wavefunction_plot,
 # Set the default hyperparameters
 HP = {
     #name of the simulation
-    'name': 'single_photon',
+    'name': 'state_synthesis',
     # default output directory
     'out_dir': 'sim_results',
     # State parameters
@@ -34,7 +34,7 @@ HP = {
     # Number of steps in optimization routine performing gradient descent
     'reps': 1000,
     # Penalty coefficient to ensure the state is normalized
-    'penalty_strength': 100,
+    'penalty_strength': 0,
     # Standard deviation of initial parameters
     'sdev': 0.1
 }
@@ -343,6 +343,7 @@ def optimize(ket, target_state, parameters, cutoff, reps=1000, penalty_strength=
                 # optimization results
                 'best_rep': i,
                 'min_cost': cost_val,
+                'fidelity': best_fid,
                 'cost_progress': np.array(cost_progress),
                 'fid_progress': np.array(fid_progress),
                 'penalty': penalty_val,

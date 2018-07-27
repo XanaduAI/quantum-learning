@@ -32,6 +32,7 @@ def ON(N, a, cutoff):
         array: a size [cutoff] complex array state vector.
     """
     state = np.zeros([cutoff])
+    state[0] = 1
     state[N] = a
     return state/np.linalg.norm(state)
 
@@ -60,7 +61,6 @@ def hex_GKP(mu, delta, cutoff):
         array: a size [cutoff] complex array state vector.
     """
     state = np.zeros([cutoff])
-    state[N] = a
     return state/np.linalg.norm(state)
 
 
