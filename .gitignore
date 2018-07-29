@@ -2,3 +2,4 @@ __pycache__/*
 sim_results/*
 TensorBoard/*
 learner/__pycache__/*
+notebooks/.ipynb_checkpoints/*

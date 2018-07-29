@@ -160,7 +160,7 @@ def optimize(ket, target_state, parameters, cutoff, reps=1000, penalty_strength=
     tf.summary.scalar('fidelity', fidelity)
 
     # loss function to minimise
-    loss = 1 - fidelity
+    loss = tf.abs(tf.reduce_sum(tf.conj(ket) * target_state) - 1)
     tf.summary.scalar('loss', loss)
 
     # ===============================================================================

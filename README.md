@@ -95,7 +95,7 @@ The following hyperparameters can be set for the script `gate_synthesis.py`:
 | `maps_outside`      | n/a                   | Set to `True` if the target unitary maps Fock states within the d-dimensional subspace specified by the gate cutoff to Fock states outside of the d-dimensional subspace. If unsure, set to True.                                                                                                                                                                                                                                              |
 
 
-The target unitary function can be defined manually in Python and added to the hyperparameters dictionary, or imported from the file `learners/gates.py`. After the optimization is complete, the gate synthesis script will automatically generate the following plots:
+The target unitary function can be defined manually in Python and added to the hyperparameters dictionary, or imported from the file `learners/gates.py`. After the optimization is complete, the gate synthesis script will automatically calculate the process fidelity and average fidelity of the two unitaries, and generate the following plots:
 
 * Cost function vs. optimization step
 * Wigner functions of the target unitary and the learnt unitary applied to the equal superposition state (for one mode states only)
