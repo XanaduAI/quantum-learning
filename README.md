@@ -1,6 +1,6 @@
 # Quantum state learning and gate synthesis
 
-<img align="left" width="100" height="100" src="https://github.com/XanaduAI/quantum-learning/blob/master/static/photon.gif">
+<img align="left" src="https://github.com/XanaduAI/quantum-learning/blob/master/static/photon.gif">
 
 This repository contains the source code used to produce the results presented in *"Machine learning method for state preparation and gate synthesis on photonic
 quantum computers"*.
@@ -20,6 +20,29 @@ To construct and optimize the variational quantum circuits, these scripts and no
 
 ## Using the scripts
 
+To use the scripts, simply set the hyperparameters - either by modifying the default hyperparameters in the file itself, or passing the relevant command line arguments - and then run the script using Python 3:
+
+```bash
+	python3 state_learner.py
+```
+
+```bash
+	python3 gate_synthesis.py
+```
+
+The results of the simulations will be saved in the directory `out_dir/simulation_ID`, with `out_dir` set by the hyperparameter dictionary, and `simulation_ID` determined automatically based on the simulation name.
+
+### State learner hyperparameters
+
+The following hyperparameters can be set for the script `state_learner.py`:
+
+
+|   Hyperparameter  | Command line argument |                                                                                                                                                                     Description                                                                                                                                                                     |
+| ----------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`            | `-n`/`--name`         | The name of the simulation                                                                                                                                                                                                                                                                                                                          |
+| `out_dir`         | `-o`/`--out-dir`      | Output directory for saving the simulation results                                                                                                                                                                                                                                                                                                  |
+| `target_state_fn` |                       | Function for generating the target state for optimization. This function can accept an optional list of gate parameters, along with the required keyword argument `cutoff` which determines Fock basis truncation. The function must return a NumPy array of length `[cutoff]` for single mode states, and length `[cutoff^2]` for two mode states. |
+|                   |                       |                                                                                                                                                                                                                                                                                                                                                     |
 
 
 ## Authors
