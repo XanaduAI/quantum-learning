@@ -1,5 +1,5 @@
 
-<img align="right" src="https://github.com/XanaduAI/quantum-learning/blob/master/static/photon.gif">
+<img align="left" src="https://github.com/XanaduAI/quantum-learning/blob/master/static/photon.gif">
 
 # Quantum state learning and gate synthesis
 
@@ -16,7 +16,7 @@ It includes the following content:
 	- `states.py`: functions to generate the states analyzed in the paper.
 	- `gates.py`: functions to generate the states analyzed in the paper.
 	- `plots.py`: functions to generate the plots and visualizations in the paper.
-	- `circuits.py`: functions to construct the one-mode and two-mode variational circuits as described in the paper *[" Continuous-variable quantum neural networks"](https://arxiv.org/abs/1806.06871)*.
+	- `circuits.py`: functions to construct the one-mode and two-mode variational circuits as described in the paper *[Continuous-variable quantum neural networks](https://arxiv.org/abs/1806.06871)*.
 
 * Jupyter notebooks: two Jupyter notebooks are also provided, `StateLearning.ipynb` and `GateSynthesis.ipynb`, walking through the process of state learning and gate synthesis respectively.
 
