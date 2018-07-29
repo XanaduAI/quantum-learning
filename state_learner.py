@@ -40,9 +40,9 @@ HP = {
     # Target states function. This function accepts an optional
     # list of gate parameters, along with the keyword argument
     # `cutoff`, which determines the Fock basis truncation.
-    'target_state_fn': single_photon,
+    'target_state_fn': NOON,
     # Dictionary of target state function parameters
-    'state_params': {},
+    'state_params': {'N':5},
     # Cutoff dimension
     'cutoff': 10,
     # Number of layers

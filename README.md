@@ -18,7 +18,7 @@ This repository contains the source code used to produce the results presented i
 	- `plots.py`: functions to generate the plots and visualizations in the paper.
 	- `circuits.py`: functions to construct the one-mode and two-mode variational circuits as described in the paper *[Continuous-variable quantum neural networks](https://arxiv.org/abs/1806.06871)*.
 
-* Jupyter notebooks: two Jupyter notebooks are also provided, `StateLearning.ipynb` and `GateSynthesis.ipynb`, walking through the process of state learning and gate synthesis respectively.
+* Jupyter notebooks: two Jupyter notebooks are also provided, [`StateLearning.ipynb`](https://github.com/XanaduAI/quantum-learning/blob/master/notebooks/StateLearning.ipynb) and [`GateSynthesis.ipynb`](https://github.com/XanaduAI/quantum-learning/blob/master/notebooks/GateSynthesis.ipynb), walking through the process of state learning and gate synthesis respectively.
 
 ## Requirements
 
