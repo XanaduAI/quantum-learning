@@ -17,7 +17,6 @@ import argparse
 import json
 
 import numpy as np
-from numpy.polynomial.hermite import hermval
 
 import tensorflow as tf
 
@@ -35,7 +34,7 @@ from learner.plots import wigner_3D_plot, wavefunction_plot, two_mode_wavefuncti
 # Set the default hyperparameters
 HP = {
     #name of the simulation
-    'name': 'NOON',
+    'name': 'single_photon',
     # default output directory
     'out_dir': 'sim_results',
     # Target states function. This function accepts an optional
