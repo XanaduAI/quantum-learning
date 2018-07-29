@@ -1,8 +1,21 @@
-#!/usr/bin/env python3
+# Copyright 2018 Xanadu Quantum Technologies Inc.
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import os
 import time
 from itertools import product
 import argparse
+import json
 
 import numpy as np
 
@@ -11,11 +24,13 @@ import tensorflow as tf
 import strawberryfields as sf
 from strawberryfields.ops import *
 
-from gates import (cubic_phase, DFT, random_unitary, cross_kerr,
-    min_cutoff, unitary_state_fidelity)
+from learner.circuits import variational_quantum_circuit
 
-from plots import (wigner_3D_plot, wavefunction_plot,
-    two_mode_wavefunction_plot, plot_cost, one_mode_unitary_plots)
+from learner.gates import (cubic_phase, DFT, random_unitary, cross_kerr,
+    min_cutoff, get_modes, unitary_state_fidelity)
+
+from learner.plots import (wigner_3D_plot, wavefunction_plot,
+    two_mode_wavefunction_plot, plot_cost, one_mode_unitary_plots, two_mode_unitary_plots)
 
 
 # ===============================================================================
@@ -25,34 +40,36 @@ from plots import (wigner_3D_plot, wavefunction_plot,
 # Set the default hyperparameters
 HP = {
     #name of the simulation
-    'name': 'gate_synthesis',
+    'name': 'cross_kerr',
     # default output directory
     'out_dir': 'sim_results',
-    # Gate parameters
-    'params': [0.01],
+    # Target unitary function. This function accepts an optional
+    # list of gate parameters, along with required keyword argument
+    # `cutoff`, which determines the Fock basis truncation.
+    'target_unitary_fn': cross_kerr,
+    # Dictionary of target unitary function arguments
+    'target_params': {'kappa': 0.1},
     # Precision
     'eps': 0.0001,
-    # offset when calculating matrix exponential
-    'offset': 20,
     # Cutoff dimension
-    'cutoff': 16,
+    'cutoff': 7,
     # Gate cutoff/truncation
-    'gate_cutoff': 5,
+    'gate_cutoff': 3,
     # Number of layers
     'depth': 25,
     # Number of steps in optimization routine performing gradient descent
-    'reps': 1000,
+    'reps': 100,
     # Penalty coefficient to ensure the state is normalized
     'penalty_strength': 0,
     # Standard deviation of active initial parameters
     'active_sd': 0.0001,
     # Standard deviation of passive initial parameters
-    'passive_sd': 1
+    'passive_sd': 0.1
 }
 
 
 # ===============================================================================
-# Auxillary functions
+# Parse command line arguments
 # ===============================================================================
 
 def parse_arguments(defaults):
@@ -70,7 +87,7 @@ def parse_arguments(defaults):
     # output arguments
     parser.add_argument('-n', '--name',
         type=str, default=defaults["name"], help='Simulation name.')
-    parser.add_argument('-o', '--outdir',
+    parser.add_argument('-o', '--out-dir',
         type=str, default=defaults["out_dir"], help='Output directory')
     parser.add_argument('-s', '--dump-reps',
         type=int, default=100, help='Steps at which to save output')
@@ -79,14 +96,12 @@ def parse_arguments(defaults):
     # simulation settings
     parser.add_argument('-r', '--reps',
         type=int, default=defaults["reps"], help='Optimization steps')
-    parser.add_argument('-p', '--param',
-        type=float, nargs='+', default=defaults["params"], help='Gate parameters')
+    parser.add_argument('-p', '--target-params',
+        type=json.loads, default=defaults["target_params"], help='Gate parameters')
     parser.add_argument('-c', '--cutoff',
         type=int, default=defaults["cutoff"], help='Fock basis truncation')
     parser.add_argument('-g', '--gate-cutoff',
         type=int, default=defaults["gate_cutoff"], help='Gate/unitary truncation')
-    parser.add_argument('-t', '--offset',
-        type=int, default=defaults["offset"], help='Matrix exponential offset')
     parser.add_argument('-d', '--depth',
         type=int, default=defaults["depth"], help='Number of layers')
     parser.add_argument('-P', '--penalty-strength',
@@ -97,18 +112,16 @@ def parse_arguments(defaults):
     hyperparams.update(defaults)
     hyperparams.update(vars(args))
 
-    hyperparams['batch_size'] = hyperparams['gate_cutoff']
-
     if args.debug:
         hyperparams['depth'] = 1
         hyperparams['reps'] = 5
         hyperparams['name'] += "_debug"
 
-    hyperparams['simulation_name'] = "{}_d{}_c{}_g{}_r{}".format(
+    hyperparams['ID'] = "{}_d{}_c{}_g{}_r{}".format(
         hyperparams['name'], hyperparams['depth'], hyperparams['cutoff'], hyperparams['gate_cutoff'], hyperparams['reps'])
 
-    hyperparams['out_dir'] = os.path.join(args.outdir, hyperparams['simulation_name'], '')
-    hyperparams['board_name'] = os.path.join('TensorBoard', hyperparams['simulation_name'], '')
+    hyperparams['out_dir'] = os.path.join(args.out_dir, hyperparams['ID'], '')
+    hyperparams['board_name'] = os.path.join('TensorBoard', hyperparams['ID'], '')
 
     # save the simulation details and results
     if not os.path.exists(hyperparams['out_dir']):
@@ -117,104 +130,81 @@ def parse_arguments(defaults):
     return hyperparams
 
 
-def one_mode_circuit(cutoff, gate_cutoff, depth=25, active_sd=0.0001, passive_sd=0.1, **kwargs):
-    """Construct the one mode circuit ansatz, and return the learnt unitary and gate parameters.
+# ===============================================================================
+# Optimization functions
+# ===============================================================================
+
+def real_unitary_overlaps(ket, target_unitary, gate_cutoff, cutoff):
+    """Calculate the overlaps between the target and output unitaries.
 
     Args:
-        cutoff (int): the simulation Fock basis truncation.
-        gate_cutoff (int): the unitary Fock basis truncation. Must be less than or equal to cutoff.
-        depth (int): the number of layers to use to construct the circuit.
-        active_sd (float): the normal standard deviation used to initialise the active gate parameters.
-        passive_sd (float): the normal standard deviation used to initialise the passive gate parameters.
-
-    Returns:
-        tuple (state, parameters): a tuple contiaining the state vector and a list of the
-            gate parameters, as tensorflow tensors.
+        ket (tensor): tensorflow tensor representing the output (batched) state vector
+            of the circuit. This can be used to determine the learnt unitary.
+            This tensor must be of size [gate_cutoff, cutoff, ..., cutoff].
+        target_unitary (array): the target unitary.
+        gate_cutoff (int): the number of input-output relations. Must be less than
+            or equal to the simulation cutoff.
     """
+    m = len(ket.shape)-1
 
-    # Layer architecture
+    if m == 1:
+        # one mode unitary
+        in_state = np.arange(gate_cutoff)
 
-    # Random initialization of gate parameters.
-    # Gate parameters begin close to zero, with values drawn from Normal(0, sdev)
-    with tf.name_scope('variables'):
-        # displacement parameters
-        d_r = tf.Variable(tf.random_normal(shape=[depth], stddev=active_sd))
-        d_phi = tf.Variable(tf.random_normal(shape=[depth], stddev=passive_sd))
-        # rotation parameter
-        r1 = tf.Variable(tf.random_normal(shape=[depth], stddev=passive_sd))
-        # squeezing parameters
-        sq_r = tf.Variable(tf.random_normal(shape=[depth], stddev=active_sd))
-        sq_phi = tf.Variable(tf.random_normal(shape=[depth], stddev=passive_sd))
-        # rotation parameter
-        r2 = tf.Variable(tf.random_normal(shape=[depth], stddev=passive_sd))
-        # Kerr gate parameter
-        kappa = tf.Variable(tf.random_normal(shape=[depth], stddev=active_sd))
+        # extract action of the target unitary acting on
+        # the allowed input fock states.
+        target_kets = np.array([target_unitary[:, i] for i in in_state])
+        target_kets = tf.constant(target_kets, dtype=tf.complex64)
 
-    # Array of all parameters
-    parameters = [d_r, d_phi, r1, sq_r, sq_phi, r2, kappa]
+        # real overlaps
+        overlaps = tf.real(tf.einsum('bi,bi->b', tf.conj(target_kets), ket))
 
-    # Gate layer: D-R-S-R-K
-    def layer(i, q, m):
-        with tf.name_scope('layer_{}'.format(i)):
-            Dgate(d_phi[i]) | q[m]
-            Rgate(r1[i]) | q[m]
-            Sgate(sq_r[i], sq_phi[i]) | q[m]
-            Rgate(r2[i]) | q[m]
-            Kgate(kappa[i]) | q[m]
+    elif m == 2:
+        # two mode unitary
+        fock_states = np.arange(gate_cutoff)
+        in_state = np.array(list(product(fock_states, fock_states)))
 
-        return q
+        # extract action of the target unitary acting on
+        # the allowed input fock states.
+        target_unitary_sf = np.einsum('ijkl->ikjl', target_unitary.reshape([cutoff]*4))
+        target_kets = np.array([target_unitary_sf[:, i, :, j] for i, j in in_state])
+        target_kets = tf.constant(target_kets, dtype=tf.complex64)
 
-    # produce 1 x batch_size array of initial states
-    in_state = np.arange(gate_cutoff)
+        # real overlaps
+        overlaps = tf.real(tf.einsum('bij,bij->b', tf.conj(target_kets), ket))
 
-    # Start SF engine
-    eng, q = sf.Engine(1)
+    for idx, state in enumerate(in_state.T):
+        tf.summary.scalar('overlap_{}'.format(state), tf.abs(overlaps[idx]))
 
-    # construct the circuit
-    with eng:
-        Fock(in_state) | q[0]
-        for k in range(depth):
-            q = layer(k, q, 0)
-
-    state = eng.run('tf', cutoff_dim=cutoff, eval=False, batch_size=gate_cutoff)
-
-    # Extract the state vector
-    ket = state.ket()
-
-    return ket, parameters
-
-
-def real_unitary_overlaps(ket, target_unitary, gate_cutoff):
-    """Calculate the overlaps between the target and output unitaries."""
-
-    in_state = np.arange(gate_cutoff)
-
-    # extract action of the target unitary acting on
-    # the allowed input fock states. This produces an array
-    # with elements indexed by (k,l), the action based on the output state.
-    target_kets = np.array([target_unitary[:, i] for i in in_state])
-    target_kets = tf.constant(target_kets, dtype=tf.complex64)
-
-    # real overlaps
-    overlaps = tf.real(tf.einsum('bi,bi->b', tf.conj(target_kets), ket))
     return overlaps
 
 
 def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, penalty_strength=100,
-        out_dir='sim_results', simulation_name='gate_synthesis', board_name='TensorBoard',
+        out_dir='sim_results', ID='gate_synthesis', board_name='TensorBoard',
         dump_reps=100, **kwargs):
-    """The optimization routine."""
+    """The optimization routine.
+
+    Args:
+        ket (tensor): tensorflow tensor representing the output (batched) state vector
+            of the circuit. This can be used to determine the learnt unitary.
+            This tensor must be of size [gate_cutoff, cutoff, ..., cutoff].
+        target_unitary (array): the target unitary.
+        parameters (list): list of the tensorflow variables representing the gate
+            parameters to be optimized in the variational quantum circuit.
+        gate_cutoff (int): the number of input-output relations. Must be less than
+            or equal to the simulation cutoff.
+    """
+
+    d = gate_cutoff
+    c = cutoff
+    m = len(ket.shape)-1
 
     # ===============================================================================
     # Loss function
     # ===============================================================================
 
-    in_state = np.arange(gate_cutoff)
-
     # real overlaps
-    overlaps = real_unitary_overlaps(ket, target_unitary, gate_cutoff)
-    for idx, state in enumerate(in_state.T):
-        tf.summary.scalar('overlap_{}'.format(state), tf.abs(overlaps[idx]))
+    overlaps = real_unitary_overlaps(ket, target_unitary, gate_cutoff, cutoff)
 
     # average of the real overlaps
     mean_overlap = tf.reduce_mean(overlaps)
@@ -230,7 +220,13 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
     # ===============================================================================
 
     # calculate the norms of the states
-    state_norms = tf.abs(tf.einsum('bi,bi->b', ket, tf.conj(ket)))
+    if m == 1:
+        # one mode unitary
+        state_norms = tf.abs(tf.einsum('bi,bi->b', ket, tf.conj(ket)))
+    elif m == 2:
+        # two mode unitary
+        state_norms = tf.abs(tf.einsum('bij,bij->b', ket, tf.conj(ket)))
+
     norm_deviation = tf.reduce_sum((state_norms - 1)**2)/gate_cutoff
 
     # penalty
@@ -271,8 +267,6 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
     best_max_overlap = 0
 
     start = time.time()
-    print('Beginning optimization')
-
 
     # Run optimization
     for i in range(reps):
@@ -297,7 +291,7 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
 
             if i > 0:
                 # save results file
-                np.savez(os.path.join(out_dir, simulation_name+'.npz'),
+                np.savez(os.path.join(out_dir, ID+'.npz'),
                     **sim_results)
 
         if i > 0 and mean_overlap_val > best_mean_overlap:
@@ -306,15 +300,22 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
             best_max_overlap = max_overlap_val
 
             min_cost = cost_val
-            eq_state_target, eq_state_learnt, state_fid = unitary_state_fidelity(target_unitary, ket_val)
+
+            if m == 1:
+                learnt_unitary = ket_val.T
+            elif m == 2:
+                learnt_unitary = ket_val.reshape(d**2, c**2).T
+
+            eq_state_target, eq_state_learnt, state_fid = unitary_state_fidelity(target_unitary, learnt_unitary, cutoff)
 
             end = time.time()
 
             sim_results = {
                 # sim details
                 'name': HP['name'],
+                'ID': HP['ID'],
                 'target_unitary': target_unitary,
-                'U_param': HP['params'],
+                'target_params': HP['target_params'],
                 'eps': HP['eps'],
                 'cutoff': cutoff,
                 'gate_cutoff': gate_cutoff,
@@ -334,7 +335,7 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
                 'max_overlap_progress': np.max(np.array(overlap_progress), axis=1),
                 'penalty': penalty_val,
                 # optimization output
-                'U_output': ket_val,
+                'learnt_unitary': learnt_unitary,
                 'params': params_val,
                 'r1': params_val[0],
                 'sq_r': params_val[1],
@@ -368,74 +369,87 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
         os.makedirs(out_dir)
 
     sim_results['runtime'] = end-start
-    sim_results['cost_progress'] = np.array(cost_progress),
+    sim_results['cost_progress'] = np.array(cost_progress)
     sim_results['mean_overlap_progress'] = np.mean(np.array(overlap_progress), axis=1)
     sim_results['min_overlap_progress'] = np.min(np.array(overlap_progress), axis=1)
     sim_results['max_overlap_progress'] = np.max(np.array(overlap_progress), axis=1)
 
-    np.savez(os.path.join(out_dir, simulation_name+'.npz'), **sim_results)
+    np.savez(os.path.join(out_dir, ID+'.npz'), **sim_results)
     return sim_results
 
 
-def save_plots(modes, target_unitary, learnt_unitary, eq_state_learnt, eq_state_target,
-        cost_progress, offset=-0.11, l=5, out_dir='sim_results',
-        simulation_name='gate_synthesis', **kwargs):
+def save_plots(target_unitary, learnt_unitary, eq_state_learnt, eq_state_target,
+        cost_progress, *, modes, offset=-0.11, l=5, out_dir='sim_results',
+        ID='gate_synthesis', **kwargs):
     """Generate and save plots"""
 
     if modes == 1:
         # generate a wigner function plot of the target state
         fig1, ax1 = wigner_3D_plot(eq_state_target, offset=offset, l=l)
-        fig1.savefig(os.path.join(out_dir, simulation_name+'_targetWigner.png'))
+        fig1.savefig(os.path.join(out_dir, ID+'_targetWigner.png'))
 
         # generate a wigner function plot of the learnt state
         fig2, ax2 = wigner_3D_plot(eq_state_learnt, offset=offset, l=l)
-        fig2.savefig(os.path.join(out_dir, simulation_name+'_learntWigner.png'))
+        fig2.savefig(os.path.join(out_dir, ID+'_learntWigner.png'))
 
-        # generate a wavefunction plot of the target state
+        # generate a matrix plot of the target and learnt unitaries
         figW1, axW1 = one_mode_unitary_plots(target_unitary, learnt_unitary)
-        figW1.savefig(os.path.join(out_dir, simulation_name+'_unitaryPlot.png'))
-    else:
+        figW1.savefig(os.path.join(out_dir, ID+'_unitaryPlot.png'))
+    elif modes == 2:
         # generate a 3D wavefunction plot of the target state
-        figW1, axW1 = two_mode_wavefunction_plot(target_state, l=l)
-        figW1.savefig(os.path.join(out_dir, simulation_name+'_targetWavefunction.png'))
+        figW1, axW1 = two_mode_wavefunction_plot(eq_state_target, l=l)
+        figW1.savefig(os.path.join(out_dir, ID+'_targetWavefunction.png'))
 
         # generate a 3D wavefunction plot of the learnt state
-        figW2, axW2 = two_mode_wavefunction_plot(best_state, l=l)
-        figW2.savefig(os.path.join(out_dir, simulation_name+'_learntWavefunction.png'))
+        figW2, axW2 = two_mode_wavefunction_plot(eq_state_learnt, l=l)
+        figW2.savefig(os.path.join(out_dir, ID+'_learntWavefunction.png'))
+
+        # generate a matrix plot of the target and learnt unitaries
+        figM1, axM1 = two_mode_unitary_plots(target_unitary, learnt_unitary)
+        figM1.savefig(os.path.join(out_dir, ID+'_unitaryPlot.png'))
 
     # generate a cost function plot
     figC, axC = plot_cost(cost_progress)
-    figC.savefig(os.path.join(out_dir, simulation_name+'_cost.png'))
+    figC.savefig(os.path.join(out_dir, ID+'_cost.png'))
 
+
+# ===============================================================================
+# Main script
+# ===============================================================================
 
 if __name__ == "__main__":
     # update hyperparameters with command line arguments
     HP = parse_arguments(HP)
 
-    # ===============================================================================
-    # Target unitary
-    # ===============================================================================
+    target_unitary = HP['target_unitary_fn'](cutoff=HP['cutoff'], **HP['target_params'])
+    HP['modes'] = get_modes(target_unitary, HP['cutoff'])
+    HP['batch_size'] = HP['gate_cutoff']**HP['modes']
 
-    # set the target state
-    target_unitary = random_unitary(5, HP['cutoff'])
-    modes = 1
+    print('------------------------------------------------------------------------')
+    print('Hyperparameters:')
+    print('------------------------------------------------------------------------')
+    for key, val in HP.items():
+        print("{}: {}".format(key, val))
+    print('------------------------------------------------------------------------')
 
-    # check cutoff is high enough for precision value
-    Ubig = random_unitary(5, HP['cutoff']+60)
-    min_cut = min_cutoff(Ubig, HP['eps'], HP['gate_cutoff'], HP['cutoff']+60)
-    if min_cut >  HP['cutoff']:
-        print("Warning! Minimum cutoff for specificed precision "
-              "is {}, but the current cutoff is {}.".format(
-                min_cut,  HP['cutoff']))
+    # produce a batch_size array of one mode initial Fock states
+    in_ket = np.zeros([HP['gate_cutoff'], HP['cutoff']])
+    np.fill_diagonal(in_ket, 1)
+
+    if HP['modes'] == 2:
+        # take the outer product of the one mode input states
+        in_ket = np.einsum('ij,kl->ikjl', in_ket, in_ket)
+        # reshape to be the correct shape for Strawberry Fields
+        in_ket = in_ket.reshape(HP['gate_cutoff']**2, HP['cutoff'], HP['cutoff'])
 
     # calculate the learnt state and return the gate parameters
-    if modes == 1:
-        ket, parameters = one_mode_circuit(**HP)
-    elif modes == 2:
-        ket, parameters = two_mode_circuit(**HP)
+    print('Constructing variational quantum circuit...')
+    ket, parameters = variational_quantum_circuit(input_state=in_ket, **HP)
 
     # perform the optimization
+    print('Beginning optimization...')
     res = optimize(ket, target_unitary, parameters, **HP)
 
     # save plots
-    save_plots(modes, **res)
+    save_plots(target_unitary, res['learnt_unitary'], res['eq_state_learnt'],
+        res['eq_state_target'], res['cost_progress'], **HP)

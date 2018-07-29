@@ -1,4 +1,16 @@
-#!/usr/bin/env python
+# Copyright 2018 Xanadu Quantum Technologies Inc.
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import numpy as np
 from scipy.linalg import expm, norm, dft
 
@@ -141,7 +153,7 @@ def get_modes(U, cutoff):
     return int(np.log(U.shape[0])/np.log(cutoff))
 
 
-def unitary_state_fidelity(V, U):
+def unitary_state_fidelity(V, U, cutoff):
     r"""The state fidelity of the target unitary and the learnt unitary
     applied to the equal superposition state.
 
@@ -163,33 +175,32 @@ def unitary_state_fidelity(V, U):
     Args:
         V (array): the target unitary.
         U (array): the learnt unitary.
+        cutoff (int): the simulation Fock basis truncation.
 
     Returns:
         tuple (array, array, float): Returns a tuple containing V|psi_d>,
             U|psi_d>, and the fidelity.
     """
     # simulation cutoff
-    c = V.shape[0]
+    c = cutoff
     # number of modes
     m = get_modes(V, c)
     # gate cutoff
-    d = np.int(U.shape[0]**(1/m))
+    d = np.int(U.shape[1]**(1/m))
 
     if m == 1:
         # single mode unitary
-        state1 = np.sum(V[:d, :], axis=0)/np.sqrt(d)
-        state2 = np.sum(U[:d, :], axis=0)/np.sqrt(d)
+        state1 = np.sum(V[:, :d], axis=1)/np.sqrt(d)
+        state2 = np.sum(U, axis=1)/np.sqrt(d)
     elif m == 2:
         # two mode unitary
         # reshape the target unitary to be shape [c^2, d^2]
-        Ut = np.einsum('ijkl->ikjl', V[:, :d, :, :d]).reshape(c**2, d**2)
-        # reshape the learnt unitary to be shape [d^2, c^2]
-        Ul = np.einsum('ijkl->ijkl', U.reshape(d, d, c, c)).reshape(d**2, c**2)
+        Ut = V.reshape(c, c, c, c)[:, :, :d, :d].reshape(c**2, d**2)
 
         eq_sup_state = np.full([d**2], 1/d)
 
         state1 = Ut @ eq_sup_state
-        state2 = Ul.T @ eq_sup_state
+        state2 = U @ eq_sup_state
 
     # calculate the fidelity
     fidelity = np.abs(np.vdot(state1, state2))**2

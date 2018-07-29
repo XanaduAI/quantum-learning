@@ -1,4 +1,16 @@
-#!/usr/bin/env python
+# Copyright 2018 Xanadu Quantum Technologies Inc.
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import numpy as np
 
 from numpy.polynomial.hermite import hermval, hermval2d
@@ -257,11 +269,49 @@ def two_mode_wavefunction_plot(ket, cmap="RdYlBu", offset=-0.11, l=4.5, N=100):
 
 
 def one_mode_unitary_plots(target_unitary, learnt_unitary):
-    d = learnt_unitary.shape[0]
-    c = learnt_unitary.shape[1]
+    c = learnt_unitary.shape[0]
+    d = learnt_unitary.shape[1]
 
-    Ut = target_unitary[:d, :c].T
-    Ur = learnt_unitary.T
+    Ut = target_unitary[:c, :d]
+    Ur = learnt_unitary
+
+    vmax = np.max([Ut.real, Ut.imag, Ur.real, Ur.imag])
+    vmin = np.min([Ut.real, Ut.imag, Ur.real, Ur.imag])
+    cmax = max(vmax, vmin)
+
+    fig, ax = plt.subplots(2, 2, figsize=(4, 7))
+    im1 = ax[0, 0].matshow(Ut.real, cmap=plt.get_cmap('Reds'), vmin=-cmax, vmax=cmax)
+    ax[0, 1].matshow(Ut.imag, cmap=plt.get_cmap('Greens'), vmin=-cmax, vmax=cmax)
+    ax[1, 0].matshow(Ur.real, cmap=plt.get_cmap('Reds'), vmin=-cmax, vmax=cmax)
+    ax[1, 1].matshow(Ur.imag, cmap=plt.get_cmap('Greens'), vmin=-cmax, vmax=cmax)
+
+    for a in ax.ravel():
+        a.tick_params(bottom=False,labelbottom=False,
+                      top=False,labeltop=False,
+                      left=False,labelleft=False,
+                      right=False,labelright=False)
+
+    ax[0, 0].set_ylabel('Target')
+    ax[1, 0].set_ylabel('Learnt')
+    ax[1, 0].set_xlabel('Real')
+    ax[1, 1].set_xlabel('Imaginary')
+
+    for a in ax.ravel():
+        a.tick_params(color='white', labelcolor='white')
+        for spine in a.spines.values():
+            spine.set_edgecolor('white')
+
+    fig.tight_layout()
+
+    return fig, ax
+
+
+def two_mode_unitary_plots(target_unitary, learnt_unitary):
+    c = int(np.sqrt(learnt_unitary.shape[0]))
+    d = int(np.sqrt(learnt_unitary.shape[1]))
+
+    Ut = target_unitary.reshape(c, c, c, c)[:, :, :d, :d].reshape(c**2, d**2)
+    Ur = learnt_unitary
 
     vmax = np.max([Ut.real, Ut.imag, Ur.real, Ur.imag])
     vmin = np.min([Ut.real, Ut.imag, Ur.real, Ur.imag])
@@ -288,5 +338,7 @@ def one_mode_unitary_plots(target_unitary, learnt_unitary):
         a.tick_params(color='white', labelcolor='white')
         for spine in a.spines.values():
             spine.set_edgecolor('white')
+
+    fig.tight_layout()
 
     return fig, ax
