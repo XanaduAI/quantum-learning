@@ -6,7 +6,7 @@
 
 This repository contains the source code used to produce the results presented in *"Machine learning method for state preparation and gate synthesis on photonic quantum computers"*.
 
-It includes the following content:
+## Contents
 
 * `state_learner.py`: a Python script to automate quantum state learning using continuous-variable (CV) variational quantum circuits. Simply specify your one- or two-mode target state, along with other hyperparameters, and this script automatically constructs and optimizes the variational quantum circuit.
 
