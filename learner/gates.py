@@ -153,6 +153,10 @@ def get_modes(U, cutoff):
     return int(np.log(U.shape[0])/np.log(cutoff))
 
 
+# ============================================================
+# Gate fidelity measures
+# ============================================================
+
 def unitary_state_fidelity(V, U, cutoff):
     r"""The state fidelity of the target unitary and the learnt unitary
     applied to the equal superposition state.
@@ -165,12 +169,11 @@ def unitary_state_fidelity(V, U, cutoff):
     is the equal superposition state, :math:`V` the target unitary, and
     :math:`U` the learnt unitary.
 
-    The target unitary should have 2m dimensions, where m is the number of modes,
-    with each dimension of size cutoff.
+    The target unitary should be of shape [c**m, c**m], where m is
+    the number of modes, and c is the simulation cutoff.
 
-    The learnt unitary should have m+1 dimensions, where m is the number of modes,
-    with the first dimension of size d^m, where d is the gate cutoff, and
-    all subsequent dimensions are of size cutoff.
+    The learnt unitary should be of shape [c**m, d**m], where m is
+    the number of modes, c is the simulation cutoff, and d is unitary truncation.
 
     Args:
         V (array): the target unitary.
@@ -205,3 +208,155 @@ def unitary_state_fidelity(V, U, cutoff):
     # calculate the fidelity
     fidelity = np.abs(np.vdot(state1, state2))**2
     return state1, state2, fidelity
+
+
+def sample_average_fidelity(V, U, cutoff, samples=10000):
+    r"""The average fidelity between the two unitaries, calculated via
+    Monte-Carlo integration.
+
+    This function returns the following average fidelity:
+
+    .. math::
+        \bar{F}  = \frac{1}{N} \sum_{i=0}^{N} |\langle 0 \mid W_i^\dagger V^\dagger U(\vec{\theta}) W_i \mid 0\rangle|^2
+
+    where :math:`W_i` is a Haar-distributed random unitary,
+    :math:`V` the target unitary, and
+    :math:`U` the learnt unitary.
+
+    The target unitary should be of shape [c**m, c**m], where m is
+    the number of modes, and c is the simulation cutoff.
+
+    The learnt unitary should be of shape [c**m, d**m], where m is
+    the number of modes, c is the simulation cutoff, and d is unitary truncation.
+
+    Args:
+        V (array): the target unitary.
+        U (array): the learnt unitary.
+        cutoff (int): the simulation Fock basis truncation.
+        samples (int): the number of samples to perform in the
+            Monte-Carlo integration.
+
+    Returns:
+        float: Returns the sampled averaged fidelity :math:`\bar{F}`.
+    """
+    # simulation cutoff
+    c = cutoff
+    # number of modes
+    m = get_modes(V, c)
+    # gate cutoff
+    d = np.int(U.shape[1]**(1/m))
+
+    if m == 1:
+        # single mode unitary
+        # reshape the target unitary to be shape [c, d]
+        Ut = V[:, :d]
+    elif m == 2:
+        # two mode unitary
+        # reshape the target unitary to be shape [c^2, d^2]
+        Ut = V.reshape(c, c, c, c)[:, :, :d, :d].reshape(c**2, d**2)
+
+    fid = []
+    Wlist = []
+    for i in range(samples):
+        W = random_interferometer(d**m)
+        Wlist.append(W)
+        f = np.abs(W[:, 0].conj().T @ Ut.conj().T @ U @ W[:, 0])**2
+        fid.append(f)
+
+    return np.mean(fid)
+
+
+def process_fidelity(V, U, cutoff):
+    r"""The process fidelity between the two unitaries.
+
+    This is defined by:
+
+    .. math::
+        F_e  = \left| \left\langle \Psi(V) \mid \Psi(U)\right\rangle\right|^2
+
+    where :math:`\left|Psi(V)\right\rangle` is the action of :math:`V` on one
+    half of a maximally entangled state :math:`\left|\phi\right\rangle`,
+    :math:`\left|Psi(V)\right\rangle = (I\otimes V)\left|\phi\right\rangle`,
+    :math:`V` is the target unitary, and :math:`U` the learnt unitary.
+
+    The target unitary should be of shape [c**m, c**m], where m is
+    the number of modes, and c is the simulation cutoff.
+
+    The learnt unitary should be of shape [c**m, d**m], where m is
+    the number of modes, c is the simulation cutoff, and d is unitary truncation.
+
+    Note that the process fidelity is only well-defined if the target unitary
+    does not map the Fock basis elements :math:`|n\rangle`, :math:`n<d`, to the
+    region :math:`n\leq d`.
+
+    Args:
+        V (array): the target unitary.
+        U (array): the learnt unitary.
+        cutoff (int): the simulation Fock basis truncation.
+
+    Returns:
+        float: Returns the sampled averaged fidelity :math:`\bar{F}`.
+    """
+    # simulation cutoff
+    c = cutoff
+    # number of modes
+    m = get_modes(V, c)
+    # gate cutoff
+    d = np.int(U.shape[1]**(1/m))
+
+    if m == 1:
+        # reshape the unitaries to be shape [d, d]
+        Ut = V[:d, :d]
+        Ul = U[:d, :d]
+    elif m == 2:
+        # reshape the unitaries to be shape [d^2, d^2]
+        Ut = V.reshape(c, c, c, c)[:d, :d, :d, :d].reshape(d**2, d**2)
+        Ul = U.reshape(c, c, d, d)[:d, :d, :d, :d].reshape(d**2, d**2)
+
+    I = np.identity(d**m)
+
+    phi = I.flatten()/np.sqrt(d**m)
+    psiV = np.kron(I, Ut) @ phi
+    psiU = np.kron(I, Ul) @ phi
+
+    return np.abs(np.vdot(psiV, psiU))**2
+
+
+def average_fidelity(V, U, cutoff):
+    r"""The average fidelity between the two unitaries.
+
+    This is related to the process fidelity :math:`F_e` by:
+
+    .. math::
+        \bar{F} = \frac{F_e d+1}{d+1}
+
+    where :math:`d` is the gate/unitary Fock basis truncation.
+
+    The target unitary should be of shape [c**m, c**m], where m is
+    the number of modes, and c is the simulation cutoff.
+
+    The learnt unitary should be of shape [c**m, d**m], where m is
+    the number of modes, c is the simulation cutoff, and d is unitary truncation.
+
+    Note that the process fidelity is only well-defined if the target unitary
+    does not map the Fock basis elements :math:`|n\rangle`, :math:`n<d`, to the
+    region :math:`n\leq d`.
+
+    Args:
+        V (array): the target unitary.
+        U (array): the learnt unitary.
+        cutoff (int): the simulation Fock basis truncation.
+
+    Returns:
+        float: Returns the sampled averaged fidelity :math:`\bar{F}`.
+    """
+    # simulation cutoff
+    c = cutoff
+    # number of modes
+    m = get_modes(V, c)
+    # gate cutoff
+    d = np.int(U.shape[1]**(1/m))
+
+    Fe = process_fidelity(V, U, cutoff)
+
+    return (Fe*d+1)/(d+1)

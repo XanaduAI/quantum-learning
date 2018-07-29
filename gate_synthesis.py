@@ -26,8 +26,8 @@ from strawberryfields.ops import *
 
 from learner.circuits import variational_quantum_circuit
 
-from learner.gates import (cubic_phase, DFT, random_unitary, cross_kerr,
-    min_cutoff, get_modes, unitary_state_fidelity)
+from learner.gates import (cubic_phase, DFT, random_unitary, cross_kerr, get_modes,
+    unitary_state_fidelity, sample_average_fidelity, process_fidelity, average_fidelity)
 
 from learner.plots import (wigner_3D_plot, wavefunction_plot,
     two_mode_wavefunction_plot, plot_cost, one_mode_unitary_plots, two_mode_unitary_plots)
@@ -40,31 +40,32 @@ from learner.plots import (wigner_3D_plot, wavefunction_plot,
 # Set the default hyperparameters
 HP = {
     #name of the simulation
-    'name': 'cross_kerr',
+    'name': 'cubic_phase',
     # default output directory
     'out_dir': 'sim_results',
     # Target unitary function. This function accepts an optional
     # list of gate parameters, along with required keyword argument
     # `cutoff`, which determines the Fock basis truncation.
-    'target_unitary_fn': cross_kerr,
+    'target_unitary_fn': cubic_phase,
     # Dictionary of target unitary function arguments
-    'target_params': {'kappa': 0.1},
-    # Precision
-    'eps': 0.0001,
+    'target_params': {'gamma': 0.01},
     # Cutoff dimension
-    'cutoff': 7,
+    'cutoff': 10,
     # Gate cutoff/truncation
-    'gate_cutoff': 3,
+    'gate_cutoff': 5,
     # Number of layers
     'depth': 25,
     # Number of steps in optimization routine performing gradient descent
-    'reps': 100,
+    'reps': 2000,
     # Penalty coefficient to ensure the state is normalized
     'penalty_strength': 0,
     # Standard deviation of active initial parameters
     'active_sd': 0.0001,
     # Standard deviation of passive initial parameters
-    'passive_sd': 0.1
+    'passive_sd': 0.1,
+    # Does the target unitary map Fock states within the gate
+    # cutoff outside of the gate cutoff? If unsure, set to True.
+    'maps_outside': True,
 }
 
 
@@ -179,7 +180,7 @@ def real_unitary_overlaps(ket, target_unitary, gate_cutoff, cutoff):
     return overlaps
 
 
-def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, penalty_strength=100,
+def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, penalty_strength=0,
         out_dir='sim_results', ID='gate_synthesis', board_name='TensorBoard',
         dump_reps=100, **kwargs):
     """The optimization routine.
@@ -193,6 +194,17 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
             parameters to be optimized in the variational quantum circuit.
         gate_cutoff (int): the number of input-output relations. Must be less than
             or equal to the simulation cutoff.
+        reps (int): the number of optimization repititions.
+        penalty_strength (float): the strength of the penalty to apply to optimized states
+            deviating from a norm of 1.
+        out_dir (str): directory to store saved output.
+        ID (str): the ID of the simulation. The optimization output is saved in the directory
+            out_dir/ID.
+        board_name (str): the folder to store data for TensorBoard.
+        dump_reps (int): the repitition frequency at which to save output.
+
+    Returns:
+        dict: a dictionary containing the hyperparameters and results of the optimization.
     """
 
     d = gate_cutoff
@@ -295,6 +307,8 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
                     **sim_results)
 
         if i > 0 and mean_overlap_val > best_mean_overlap:
+            end = time.time()
+
             best_mean_overlap = mean_overlap_val
             best_min_overlap = min_overlap_val
             best_max_overlap = max_overlap_val
@@ -307,8 +321,9 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
                 learnt_unitary = ket_val.reshape(d**2, c**2).T
 
             eq_state_target, eq_state_learnt, state_fid = unitary_state_fidelity(target_unitary, learnt_unitary, cutoff)
-
-            end = time.time()
+            Fe = process_fidelity(target_unitary, learnt_unitary, cutoff)
+            avgF = average_fidelity(target_unitary, learnt_unitary, cutoff)
+            # avgFs = sample_average_fidelity(target_unitary, learnt_unitary, cutoff)
 
             sim_results = {
                 # sim details
@@ -316,7 +331,7 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
                 'ID': HP['ID'],
                 'target_unitary': target_unitary,
                 'target_params': HP['target_params'],
-                'eps': HP['eps'],
+                # 'eps': HP['eps'],
                 'cutoff': cutoff,
                 'gate_cutoff': gate_cutoff,
                 'depth': HP['depth'],
@@ -328,6 +343,8 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
                 'mean_overlap': mean_overlap_val,
                 'min_overlap': min_overlap_val,
                 'max_overlap': max_overlap_val,
+                'process_fidelity': Fe,
+                'avg_fidelity': avgF,
                 'min_cost': cost_val,
                 'cost_progress': np.array(cost_progress),
                 'mean_overlap_progress': np.mean(np.array(overlap_progress), axis=1),
@@ -360,9 +377,16 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
     print("Min overlap = {}".format(best_min_overlap))
     print("Max overlap = {}".format(best_max_overlap))
 
+    avgFs = sample_average_fidelity(target_unitary, learnt_unitary, cutoff)
+    sim_results['sample_avg_fidelity'] = avgFs
+
+    print("\nProcess fidelity = {}".format(Fe))
+    print("Average fidelity = {}".format(avgF))
+    print("Sampled average fidelity = {}".format(avgFs))
+
     print("\nEqual superposition state fidelity = ", state_fid)
-    print("Target state = ", eq_state_target)
-    print("Learnt state = ", eq_state_learnt)
+    # print("Target state = ", eq_state_target)
+    # print("Learnt state = ", eq_state_learnt)
 
     # save the simulation details and results
     if not os.path.exists(out_dir):
@@ -383,6 +407,8 @@ def save_plots(target_unitary, learnt_unitary, eq_state_learnt, eq_state_target,
         ID='gate_synthesis', **kwargs):
     """Generate and save plots"""
 
+    square = not kwargs.get('maps_outside', True)
+
     if modes == 1:
         # generate a wigner function plot of the target state
         fig1, ax1 = wigner_3D_plot(eq_state_target, offset=offset, l=l)
@@ -393,7 +419,7 @@ def save_plots(target_unitary, learnt_unitary, eq_state_learnt, eq_state_target,
         fig2.savefig(os.path.join(out_dir, ID+'_learntWigner.png'))
 
         # generate a matrix plot of the target and learnt unitaries
-        figW1, axW1 = one_mode_unitary_plots(target_unitary, learnt_unitary)
+        figW1, axW1 = one_mode_unitary_plots(target_unitary, learnt_unitary, square=square)
         figW1.savefig(os.path.join(out_dir, ID+'_unitaryPlot.png'))
     elif modes == 2:
         # generate a 3D wavefunction plot of the target state
@@ -405,7 +431,7 @@ def save_plots(target_unitary, learnt_unitary, eq_state_learnt, eq_state_target,
         figW2.savefig(os.path.join(out_dir, ID+'_learntWavefunction.png'))
 
         # generate a matrix plot of the target and learnt unitaries
-        figM1, axM1 = two_mode_unitary_plots(target_unitary, learnt_unitary)
+        figM1, axM1 = two_mode_unitary_plots(target_unitary, learnt_unitary, square=square)
         figM1.savefig(os.path.join(out_dir, ID+'_unitaryPlot.png'))
 
     # generate a cost function plot
@@ -451,5 +477,6 @@ if __name__ == "__main__":
     res = optimize(ket, target_unitary, parameters, **HP)
 
     # save plots
+    print('Generating plots...')
     save_plots(target_unitary, res['learnt_unitary'], res['eq_state_learnt'],
         res['eq_state_target'], res['cost_progress'], **HP)

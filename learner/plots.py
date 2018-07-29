@@ -268,22 +268,35 @@ def two_mode_wavefunction_plot(ket, cmap="RdYlBu", offset=-0.11, l=4.5, N=100):
     return fig, ax
 
 
-def one_mode_unitary_plots(target_unitary, learnt_unitary):
+def one_mode_unitary_plots(target_unitary, learnt_unitary, square=False):
+    """Plot the target and learnt unitaries as a matrix plot..
+
+    Args:
+        target_unitary (array): the size [cutoff, cutoff] target unitary.
+        learnt_unitary (array): the size [cutoff, gate_cutoff] learnt unitary.
+
+    Returns:
+        tuple (figure, axis): the matplotlib figure and axis objects.
+    """
     c = learnt_unitary.shape[0]
     d = learnt_unitary.shape[1]
 
-    Ut = target_unitary[:c, :d]
-    Ur = learnt_unitary
+    if square:
+        Ut = target_unitary[:d, :d]
+        Ur = learnt_unitary[:d, :d]
+    else:
+        Ut = target_unitary[:c, :d]
+        Ur = learnt_unitary[:c, :d]
 
     vmax = np.max([Ut.real, Ut.imag, Ur.real, Ur.imag])
     vmin = np.min([Ut.real, Ut.imag, Ur.real, Ur.imag])
     cmax = max(vmax, vmin)
 
-    fig, ax = plt.subplots(2, 2, figsize=(4, 7))
-    im1 = ax[0, 0].matshow(Ut.real, cmap=plt.get_cmap('Reds'), vmin=-cmax, vmax=cmax)
-    ax[0, 1].matshow(Ut.imag, cmap=plt.get_cmap('Greens'), vmin=-cmax, vmax=cmax)
-    ax[1, 0].matshow(Ur.real, cmap=plt.get_cmap('Reds'), vmin=-cmax, vmax=cmax)
-    ax[1, 1].matshow(Ur.imag, cmap=plt.get_cmap('Greens'), vmin=-cmax, vmax=cmax)
+    fig, ax = plt.subplots(1, 4, figsize=(7, 4))
+    ax[0].matshow(Ut.real, cmap=plt.get_cmap('Reds'), vmin=-cmax, vmax=cmax)
+    ax[1].matshow(Ut.imag, cmap=plt.get_cmap('Greens'), vmin=-cmax, vmax=cmax)
+    ax[2].matshow(Ur.real, cmap=plt.get_cmap('Reds'), vmin=-cmax, vmax=cmax)
+    ax[3].matshow(Ur.imag, cmap=plt.get_cmap('Greens'), vmin=-cmax, vmax=cmax)
 
     for a in ax.ravel():
         a.tick_params(bottom=False,labelbottom=False,
@@ -291,10 +304,10 @@ def one_mode_unitary_plots(target_unitary, learnt_unitary):
                       left=False,labelleft=False,
                       right=False,labelright=False)
 
-    ax[0, 0].set_ylabel('Target')
-    ax[1, 0].set_ylabel('Learnt')
-    ax[1, 0].set_xlabel('Real')
-    ax[1, 1].set_xlabel('Imaginary')
+    ax[0].set_xlabel(r'$\mathrm{Re}(V)$')
+    ax[1].set_xlabel(r'$\mathrm{Im}(V)$')
+    ax[2].set_xlabel(r'$\mathrm{Re}(U)$')
+    ax[3].set_xlabel(r'$\mathrm{Im}(U)$')
 
     for a in ax.ravel():
         a.tick_params(color='white', labelcolor='white')
@@ -306,22 +319,35 @@ def one_mode_unitary_plots(target_unitary, learnt_unitary):
     return fig, ax
 
 
-def two_mode_unitary_plots(target_unitary, learnt_unitary):
+def two_mode_unitary_plots(target_unitary, learnt_unitary, square=False):
+    """Plot the two-mode target and learnt unitaries as a matrix plot..
+
+    Args:
+        target_unitary (array): the size [cutoff, cutoff] target unitary.
+        learnt_unitary (array): the size [cutoff, gate_cutoff] learnt unitary.
+
+    Returns:
+        tuple (figure, axis): the matplotlib figure and axis objects.
+    """
     c = int(np.sqrt(learnt_unitary.shape[0]))
     d = int(np.sqrt(learnt_unitary.shape[1]))
 
-    Ut = target_unitary.reshape(c, c, c, c)[:, :, :d, :d].reshape(c**2, d**2)
-    Ur = learnt_unitary
+    if square:
+        Ut = target_unitary.reshape(c, c, c, c)[:d, :d, :d, :d].reshape(d**2, d**2)
+        Ur = learnt_unitary.reshape(c, c, d, d)[:d, :d, :d, :d].reshape(d**2, d**2)
+    else:
+        Ut = target_unitary.reshape(c, c, c, c)[:, :, :d, :d].reshape(c**2, d**2)
+        Ur = learnt_unitary
 
     vmax = np.max([Ut.real, Ut.imag, Ur.real, Ur.imag])
     vmin = np.min([Ut.real, Ut.imag, Ur.real, Ur.imag])
     cmax = max(vmax, vmin)
 
-    fig, ax = plt.subplots(2, 2)
-    im1 = ax[0, 0].matshow(Ut.real, cmap=plt.get_cmap('Reds'), vmin=-cmax, vmax=cmax)
-    ax[0, 1].matshow(Ut.imag, cmap=plt.get_cmap('Greens'), vmin=-cmax, vmax=cmax)
-    ax[1, 0].matshow(Ur.real, cmap=plt.get_cmap('Reds'), vmin=-cmax, vmax=cmax)
-    ax[1, 1].matshow(Ur.imag, cmap=plt.get_cmap('Greens'), vmin=-cmax, vmax=cmax)
+    fig, ax = plt.subplots(1, 4)
+    ax[0].matshow(Ut.real, cmap=plt.get_cmap('Reds'), vmin=-cmax, vmax=cmax)
+    ax[1].matshow(Ut.imag, cmap=plt.get_cmap('Greens'), vmin=-cmax, vmax=cmax)
+    ax[2].matshow(Ur.real, cmap=plt.get_cmap('Reds'), vmin=-cmax, vmax=cmax)
+    ax[3].matshow(Ur.imag, cmap=plt.get_cmap('Greens'), vmin=-cmax, vmax=cmax)
 
     for a in ax.ravel():
         a.tick_params(bottom=False,labelbottom=False,
@@ -329,10 +355,10 @@ def two_mode_unitary_plots(target_unitary, learnt_unitary):
                       left=False,labelleft=False,
                       right=False,labelright=False)
 
-    ax[0, 0].set_ylabel('Target')
-    ax[1, 0].set_ylabel('Learnt')
-    ax[1, 0].set_xlabel('Real')
-    ax[1, 1].set_xlabel('Imaginary')
+    ax[0].set_ylabel(r'$\mathrm{Re}(V)$')
+    ax[1].set_ylabel(r'$\mathrm{Im}(V)$')
+    ax[2].set_xlabel(r'$\mathrm{Re}(U)$')
+    ax[3].set_xlabel(r'$\mathrm{Im}(U)$')
 
     for a in ax.ravel():
         a.tick_params(color='white', labelcolor='white')

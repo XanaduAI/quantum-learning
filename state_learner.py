@@ -41,9 +41,9 @@ HP = {
     # Target states function. This function accepts an optional
     # list of gate parameters, along with the keyword argument
     # `cutoff`, which determines the Fock basis truncation.
-    'target_state_fn': NOON,
+    'target_state_fn': single_photon,
     # Dictionary of target state function parameters
-    'state_params': {'N': 3},
+    'state_params': {},
     # Cutoff dimension
     'cutoff': 10,
     # Number of layers
@@ -128,10 +128,30 @@ def state_fidelity(ket, target_state):
     return fidelity
 
 
-def optimize(ket, target_state, parameters, cutoff, reps=1000, penalty_strength=100,
+def optimize(ket, target_state, parameters, cutoff, reps=1000, penalty_strength=0,
         out_dir='sim_results', ID='state_learning', board_name='TensorBoard',
         dump_reps=100, **kwargs):
-    """The optimization routine."""
+    """The optimization routine.
+
+    Args:
+        ket (tensor): tensorflow tensor representing the output state vector of the circuit.
+        target_state (array): the target state.
+        parameters (list): list of the tensorflow variables representing the gate
+            parameters to be optimized in the variational quantum circuit.
+        cutoff (int): the simulation Fock basis truncation.
+        reps (int): the number of optimization repititions.
+        penalty_strength (float): the strength of the penalty to apply to optimized states
+            deviating from a norm of 1.
+        out_dir (str): directory to store saved output.
+        ID (str): the ID of the simulation. The optimization output is saved in the directory
+            out_dir/ID.
+        board_name (str): the folder to store data for TensorBoard.
+        dump_reps (int): the repitition frequency at which to save output.
+
+    Returns:
+        dict: a dictionary containing the hyperparameters and results of the optimization.
+    """
+
 
     # ===============================================================================
     # Loss function
@@ -326,4 +346,5 @@ if __name__ == "__main__":
     res = optimize(ket, target_state, parameters, **HP)
 
     # save plots
+    print('Generating plots...')
     save_plots(res['learnt_state'], target_state, res['cost_progress'], **HP)
