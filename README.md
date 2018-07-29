@@ -33,7 +33,24 @@ To use the scripts, simply set the hyperparameters - either by modifying the def
 	python3 state_learner.py
 ```
 
-The results of the simulations will be saved in the directory `out_dir/simulation_ID`, with `out_dir` set by the hyperparameter dictionary, and `simulation_ID` determined automatically based on the simulation name.
+The outputs of the simulations will be saved in the directory `out_dir/simulation_ID`, with `out_dir` set by the hyperparameter dictionary, and `simulation_ID` determined automatically based on the simulation name.
+
+For every simulation, the outputs include plots and visualisations of the target and learnt state/gate, as well as a NumPy multi-array file `simulation_ID.npz`. This file contains all the hyperparameters that characterize the simulation, as well as the results - including the target/learnt state/gate, and the optimized variational circuit gate parameters.
+
+To access the saved data, the file can be loaded using NumPy:
+
+```python
+	results = np.load('simulation_ID.npz')
+```
+
+The individual hyperparameters and results can then be accessed via the respective key. For example, to extract the learnt state, as well as a list of the variational circuit layer squeezing magnitudes:
+
+```python
+	learnt_state = results['learnt_state']
+	squeezing = results['sq_r']
+```
+
+For a list of all available keys, simply run `print(results.keys())`.
 
 ### State learner hyperparameters
 
