@@ -20,6 +20,8 @@ This repository contains the source code used to produce the results presented i
 
 * Jupyter notebooks: two Jupyter notebooks are also provided, [`StateLearning.ipynb`](https://github.com/XanaduAI/quantum-learning/blob/master/notebooks/StateLearning.ipynb) and [`GateSynthesis.ipynb`](https://github.com/XanaduAI/quantum-learning/blob/master/notebooks/GateSynthesis.ipynb), walking through the process of state learning and gate synthesis respectively.
 
+<img src="https://github.com/XanaduAI/quantum-learning/blob/master/static/random.gif">
+
 ## Requirements
 
 To construct and optimize the variational quantum circuits, these scripts and notebooks use the TensorFlow backend of [Strawberry Fields](https://github.com/XanaduAI/strawberryfields). In addition, matplotlib is required for generating output plots, and [OpenFermion](https://github.com/quantumlib/OpenFermion) is used to construct target gate unitaries.
