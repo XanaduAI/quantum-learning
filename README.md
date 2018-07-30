@@ -20,7 +20,9 @@ This repository contains the source code used to produce the results presented i
 
 * Jupyter notebooks: two Jupyter notebooks are also provided, [`StateLearning.ipynb`](https://github.com/XanaduAI/quantum-learning/blob/master/notebooks/StateLearning.ipynb) and [`GateSynthesis.ipynb`](https://github.com/XanaduAI/quantum-learning/blob/master/notebooks/GateSynthesis.ipynb), walking through the process of state learning and gate synthesis respectively.
 
-<img align="center" src="https://github.com/XanaduAI/quantum-learning/blob/master/static/random.gif">
+<p align="center">
+	<img src="https://github.com/XanaduAI/quantum-learning/blob/master/static/random.gif">
+</p>
 
 ## Requirements
 
