@@ -4,7 +4,7 @@
 # Quantum state learning and gate synthesis
 
 
-This repository contains the source code used to produce the results presented in *"Machine learning method for state preparation and gate synthesis on photonic quantum computers"*.
+This repository contains the source code used to produce the results presented in *"Machine learning method for state preparation and gate synthesis on photonic quantum computers"* [arXiv:1807.10781](https://arxiv.org/abs/1807.10781).
 
 ## Contents
 
@@ -112,7 +112,9 @@ Juan Miguel Arrazola, Thomas R. Bromley, Josh Izaac, Casey R. Myers, Kamil Brád
 
 If you are doing any research using this source code and Strawberry Fields, please cite the following two papers:
 
-> Nathan Killoran, Josh Izaac, Nicolás Quesada, Ville Bergholm, Matthew Amy, and Christian Weedbrook. Strawberry Fields: A Software Platform for Photonic Quantum Computing. arXiv, 2018. arXiv:1804.03159
+> Juan Miguel Arrazola, Thomas R. Bromley, Josh Izaac, Casey R. Myers, Kamil Brádler, and Nathan Killoran. Machine learning method for state preparation and gate synthesis on photonic quantum computers. arXiv, 2018. [arXiv:1807.10781](https://arxiv.org/abs/1807.10781)
+
+> Nathan Killoran, Josh Izaac, Nicolás Quesada, Ville Bergholm, Matthew Amy, and Christian Weedbrook. Strawberry Fields: A Software Platform for Photonic Quantum Computing. arXiv, 2018. [arXiv:1804.03159](https://arxiv.org/abs/1804.03159)
 
 ## License
 
