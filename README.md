@@ -20,6 +20,8 @@ This repository contains the source code used to produce the results presented i
 
 * Jupyter notebooks: two Jupyter notebooks are also provided, [`StateLearning.ipynb`](https://github.com/XanaduAI/quantum-learning/blob/master/notebooks/StateLearning.ipynb) and [`GateSynthesis.ipynb`](https://github.com/XanaduAI/quantum-learning/blob/master/notebooks/GateSynthesis.ipynb), walking through the process of state learning and gate synthesis respectively.
 
+* Results and data presented in [arXiv:1807.10781](https://arxiv.org/abs/1807.10781): contains two sub folders; `gate_results` and `state_results`, each with NumPy `npz` files containing the hyperparameters and circuit parameters of the synthesized gates and learnt states presented in arXiv:1807.10781. Refer to these folder for more informtion on the data contained.
+
 <p align="center">
 	<img src="https://github.com/XanaduAI/quantum-learning/blob/master/static/random.gif">
 </p>

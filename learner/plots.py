@@ -160,7 +160,7 @@ def wigner_3D_plot(ket, offset=-0.12, l=5., cmap="RdYlGn", vmin=None, vmax=None)
     rho = np.outer(ket, np.conj(ket))
     X, P, W = wigner(rho, x, p)
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(12,9))
     ax = fig.add_subplot(111, projection="3d")
     ax.plot_surface(X, P, W, cmap=cmap, lw=0.5, rstride=1, cstride=1, vmin=vmin, vmax=vmax)
     ax.contour(X, P, W, 10, cmap=cmap, linestyles="solid", offset=offset)

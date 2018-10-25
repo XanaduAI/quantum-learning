@@ -68,7 +68,7 @@ def one_mode_variational_quantum_circuit(cutoff, input_state=None, batch_size=No
         return q
 
     # Start SF engine
-    eng, q = sf.Engine(1)
+    eng, q = sf.Engine(1, hbar=0.5)
 
     # construct the circuit
     with eng:

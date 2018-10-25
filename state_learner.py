@@ -27,6 +27,29 @@ from learner.circuits import variational_quantum_circuit
 from learner.states import single_photon, ON, hex_GKP, random_state, NOON, correct_global_phase
 from learner.plots import wigner_3D_plot, wavefunction_plot, two_mode_wavefunction_plot, plot_cost
 
+
+import matplotlib.pyplot as plt
+
+
+def cat_state(a, p, cutoff):
+    # p=0 if even, p=pi if odd
+    phi = np.pi*p
+
+    # normalisation constant
+    temp = np.exp(-0.5 * np.abs(a)**2)
+    N = temp / np.sqrt(2*(1 + np.cos(phi) * temp**4))
+
+    # coherent states
+    k = np.arange(cutoff)
+    c1 = (a**k) / np.sqrt(fac(k))
+    c2 = ((-a)**k) / np.sqrt(fac(k))
+
+    # add them up with a relative phase
+    ket = (c1 + np.exp(1j*phi) * c2) * N
+
+    return ket
+
+
 # ===============================================================================
 # Hyperparameters
 # ===============================================================================
@@ -34,21 +57,21 @@ from learner.plots import wigner_3D_plot, wavefunction_plot, two_mode_wavefuncti
 # Set the default hyperparameters
 HP = {
     #name of the simulation
-    'name': 'single_photon',
+    'name': 'cat_gif5',
     # default output directory
     'out_dir': 'sim_results',
     # Target states function. This function accepts an optional
     # list of gate parameters, along with the keyword argument
     # `cutoff`, which determines the Fock basis truncation.
-    'target_state_fn': NOON,
+    'target_state_fn': cat_state,
     # Dictionary of target state function parameters
-    'state_params': {'N':5},
+    'state_params': {'a':1.5, 'p':0},
     # Cutoff dimension
-    'cutoff': 10,
+    'cutoff': 15,
     # Number of layers
-    'depth': 20,
+    'depth': 25,
     # Number of steps in optimization routine performing gradient descent
-    'reps': 1000,
+    'reps': 2000,
     # Penalty coefficient to ensure the state is normalized
     'penalty_strength': 0,
     # Standard deviation of active initial parameters
@@ -160,7 +183,7 @@ def optimize(ket, target_state, parameters, cutoff, reps=1000, penalty_strength=
     tf.summary.scalar('fidelity', fidelity)
 
     # loss function to minimise
-    loss = tf.abs(tf.reduce_sum(tf.conj(ket) * target_state) - 1)
+    loss = 1-fidelity #tf.abs(tf.reduce_sum(tf.conj(ket) * target_state) - 1)
     tf.summary.scalar('loss', loss)
 
     # ===============================================================================
@@ -217,6 +240,13 @@ def optimize(ket, target_state, parameters, cutoff, reps=1000, penalty_strength=
         # Stores fidelity at each step
         cost_progress.append(cost_val)
         fid_progress.append(fid_val)
+
+        fig2, ax2 = wigner_3D_plot(ket_val, offset=-0.155, l=5)
+        # ax2.set_xlim3d(-5, 5)
+        # ax2.set_ylim3d(-5, 5)
+        ax2.set_zlim3d(-0.2, None)
+        fig2.savefig(os.path.join(out_dir, '{}.png'.format(i).zfill(4)))
+        plt.close(fig2)
 
         if i % dump_reps == 0:
             # print progress

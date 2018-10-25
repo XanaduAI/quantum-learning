@@ -18,6 +18,7 @@ import argparse
 import json
 
 import numpy as np
+from matplotlib import pyplot as plt
 
 import tensorflow as tf
 
@@ -40,19 +41,19 @@ from learner.plots import (wigner_3D_plot, wavefunction_plot,
 # Set the default hyperparameters
 HP = {
     #name of the simulation
-    'name': 'cubic_phase',
+    'name': 'random_gif',
     # default output directory
     'out_dir': 'sim_results',
     # Target unitary function. This function accepts an optional
     # list of gate parameters, along with required keyword argument
     # `cutoff`, which determines the Fock basis truncation.
-    'target_unitary_fn': cubic_phase,
+    'target_unitary_fn': random_unitary,
     # Dictionary of target unitary function arguments
-    'target_params': {'gamma': 0.01},
+    'target_params': {'size': 4},
     # Cutoff dimension
     'cutoff': 10,
     # Gate cutoff/truncation
-    'gate_cutoff': 5,
+    'gate_cutoff': 4,
     # Number of layers
     'depth': 25,
     # Number of steps in optimization routine performing gradient descent
@@ -65,7 +66,7 @@ HP = {
     'passive_sd': 0.1,
     # Does the target unitary map Fock states within the gate
     # cutoff outside of the gate cutoff? If unsure, set to True.
-    'maps_outside': True,
+    'maps_outside': False,
 }
 
 
@@ -292,6 +293,41 @@ def optimize(ket, target_unitary, parameters, cutoff, gate_cutoff, reps=1000, pe
         # store cost at each step
         cost_progress.append(cost_val)
         overlap_progress.append(overlaps_val)
+
+        if m == 1:
+            learnt_unitary = ket_val.T
+        elif m == 2:
+            learnt_unitary = ket_val.reshape(d**2, c**2).T
+
+        c = learnt_unitary.shape[0]
+        d = learnt_unitary.shape[1]
+        Ur = learnt_unitary[:d, :d]
+
+        vmax = np.max([Ur.real, Ur.imag])
+        vmin = np.min([Ur.real, Ur.imag])
+        cmax = max(vmax, vmin)
+
+        fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+        ax[0].matshow(Ur.real, cmap=plt.get_cmap('Reds'), vmin=-cmax, vmax=cmax)
+        ax[1].matshow(Ur.imag, cmap=plt.get_cmap('Greens'), vmin=-cmax, vmax=cmax)
+
+        for a in ax.ravel():
+            a.tick_params(bottom=False,labelbottom=False,
+                          top=False,labeltop=False,
+                          left=False,labelleft=False,
+                          right=False,labelright=False)
+
+        ax[0].set_xlabel(r'$\mathrm{Re}(U)$')
+        ax[1].set_xlabel(r'$\mathrm{Im}(U)$')
+
+        for a in ax.ravel():
+            a.tick_params(color='white', labelcolor='white')
+            for spine in a.spines.values():
+                spine.set_edgecolor('white')
+
+        fig.tight_layout()
+        fig.savefig(os.path.join(out_dir, '{}.png'.format(i).zfill(4)))
+        plt.close(fig)
 
         if i % dump_reps == 0:
             # print progress
