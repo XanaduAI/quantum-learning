@@ -4,7 +4,7 @@
 # Quantum state learning and gate synthesis
 
 
-This repository contains the source code used to produce the results presented in *"Machine learning method for state preparation and gate synthesis on photonic quantum computers"* [arXiv:1807.10781](https://arxiv.org/abs/1807.10781).
+This repository contains the source code used to produce the results presented in *"Machine learning method for state preparation and gate synthesis on photonic quantum computers"* [Quantum Science and Technology, Volume 4, Number 2 ](https://arxiv.org/abs/1807.10781).
 
 ## Contents
 
