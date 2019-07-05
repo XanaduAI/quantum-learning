@@ -115,7 +115,7 @@ Juan Miguel Arrazola, Thomas R. Bromley, Josh Izaac, Casey R. Myers, Kamil Brád
 
 If you are doing any research using this source code and Strawberry Fields, please cite the following two papers:
 
-> Juan Miguel Arrazola, Thomas R. Bromley, Josh Izaac, Casey R. Myers, Kamil Brádler, and Nathan Killoran. Machine learning method for state preparation and gate synthesis on photonic quantum computers. [Quantum Science and Technology, 4 024004](https://iopscience.iop.org/article/10.1088/2058-9565/aaf59e) (2018).
+> Juan Miguel Arrazola, Thomas R. Bromley, Josh Izaac, Casey R. Myers, Kamil Brádler, and Nathan Killoran. Machine learning method for state preparation and gate synthesis on photonic quantum computers. [Quantum Science and Technology, 4 024004](https://iopscience.iop.org/article/10.1088/2058-9565/aaf59e) (2019).
 
 > Nathan Killoran, Josh Izaac, Nicolás Quesada, Ville Bergholm, Matthew Amy, and Christian Weedbrook. Strawberry Fields: A Software Platform for Photonic Quantum Computing. arXiv, 2018. [Quantum, 3, 129](https://quantum-journal.org/papers/q-2019-03-11-129/) (2019).
 
