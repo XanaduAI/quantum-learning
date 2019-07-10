@@ -67,20 +67,23 @@ def one_mode_variational_quantum_circuit(cutoff, input_state=None, batch_size=No
 
         return q
 
-    # Start SF engine
-    eng, q = sf.Engine(1, hbar=0.5)
+    # Start SF program
+    sf.hbar = 0.5
+    prog = sf.Program(1)
 
     # construct the circuit
-    with eng:
+    with prog.context as q:
         if input_state is not None:
             Ket(input_state) | q
         for k in range(depth):
             q = layer(k, q, 0)
 
     if batch_size is not None:
-        state = eng.run('tf', cutoff_dim=cutoff, eval=False, batch_size=batch_size)
+        eng = sf.Engine("tf", backend_options={"cutoff_dim": cutoff, "batch_size": batch_size})
     else:
-        state = eng.run('tf', cutoff_dim=cutoff, eval=False)
+        eng = sf.Engine("tf", backend_options={"cutoff_dim": cutoff})
+
+    state = eng.run(prog, run_options={"eval": False}).state
 
     # Extract the state vector
     ket = state.ket()
@@ -146,8 +149,9 @@ def two_mode_variational_quantum_circuit(cutoff, input_state=None, batch_size=No
                 Kgate(kappa[m, i]) | q[m]
         return q
 
-    # Start SF engine
-    eng, q = sf.Engine(2)
+    # Start SF program
+    sf.hbar = 2
+    prog = sf.Program(2)
 
     # construct the circuit
     with eng:
@@ -157,9 +161,11 @@ def two_mode_variational_quantum_circuit(cutoff, input_state=None, batch_size=No
             q = layer(k, q)
 
     if batch_size is not None:
-        state = eng.run('tf', cutoff_dim=cutoff, eval=False, batch_size=batch_size)
+        eng = sf.Engine("tf", backend_options={"cutoff_dim": cutoff, "batch_size": batch_size})
     else:
-        state = eng.run('tf', cutoff_dim=cutoff, eval=False)
+        eng = sf.Engine("tf", backend_options={"cutoff_dim": cutoff})
+
+    state = eng.run(prog, run_options={"eval": False}).state
 
     # Extract the state vector
     ket = state.ket()
