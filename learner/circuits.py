@@ -67,7 +67,8 @@ def one_mode_variational_quantum_circuit(cutoff, input_state=None, batch_size=No
 
         return q
 
-    # Startprogram
+    # Start SF program
+    sf.hbar = 0.5
     prog = sf.Program(1)
 
     # construct the circuit
