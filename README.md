@@ -30,8 +30,6 @@ This repository contains the source code used to produce the results presented i
 
 To construct and optimize the variational quantum circuits, these scripts and notebooks use the TensorFlow backend of [Strawberry Fields](https://github.com/XanaduAI/strawberryfields). In addition, matplotlib is required for generating output plots, and [OpenFermion](https://github.com/quantumlib/OpenFermion) is used to construct target gate unitaries.
 
-**Due to subsequent interface upgrades, these scripts will work only with Strawberry Fields version <= 0.10.0.**
-
 ## Using the scripts
 
 To use the scripts, simply set the hyperparameters - either by modifying the default hyperparameters in the file itself, or passing the relevant command line arguments - and then run the script using Python 3:
